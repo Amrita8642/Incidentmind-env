@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "incidentmind"
+version = "1.0.0"
+description = "IncidentMind: AI-powered SRE incident triage environment for the Meta PyTorch × HuggingFace OpenEnv Hackathon 2026"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# ── Runtime dependencies ──────────────────────────────────────────────────────
+# Amrita reads this to populate server/requirements.txt for the Dockerfile.
+# Run: pip install -e ".[dev]" locally.
+dependencies = [
+    # OpenEnv base classes (Environment, EnvClient, Action, Observation)
+    "openenv-core",
+
+    # HTTP API framework + ASGI server
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+
+    # Type-safe data models (Pydantic v2 is required — v1 API is not compatible)
+    "pydantic>=2.0.0",
+
+    # WebSocket support required by openenv-core
+    "websockets>=12.0",
+
+    # Graph operations — used by Sneha's ServiceGraph (must be installed in server image)
+    "networkx>=3.0",
+
+    # Seeded randomness — used by Sneha's IncidentGenerator + AlertGenerator
+    "numpy>=1.24.0",
+
+    # LLM client for inference.py
+    "openai>=1.0.0",
+
+    # Load .env file for local development (reads API_BASE_URL, MODEL_NAME, HF_TOKEN)
+    "python-dotenv>=1.0.0",
+
+    # YAML parsing — may be needed if openenv.yaml is read at runtime
+    "pyyaml>=6.0",
+
+    # HTTP client used internally by IncidentEnvClient
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "httpx>=0.25.0",   # Also needed for FastAPI TestClient
+]
+
+[tool.setuptools.packages.find]
+# Tells setuptools to find incidentmind, server, envs packages automatically
+where = ["."]
+
+# ── Amrita: generate server/requirements.txt from here ───────────────────────
+# Run this command once all dependencies are finalised:
+#   pip install pip-tools
+#   pip-compile pyproject.toml --output-file server/requirements.txt
+# OR simply:
+#   pip freeze > server/requirements.txt  (after pip install -e .)
