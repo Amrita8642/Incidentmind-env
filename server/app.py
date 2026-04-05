@@ -26,8 +26,8 @@ from fastapi import FastAPI, HTTPException, Request
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from models import Action, Observation, ResetRequest, State, StepResult
-from server.environment import IncidentEnvironment
+from IncidentMind.models import Action, Observation, ResetRequest, State, StepResult
+from IncidentMind.server.environment import IncidentEnvironment
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -89,6 +89,16 @@ async def health() -> dict[str, str]:
     Amrita's CI pipeline curls this after docker run to confirm startup.
     """
     return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /      — root endpoint to prevent 404s on HF Spaces
+# ─────────────────────────────────────────────────────────────────────────────
+@app.get("/", tags=["ops"])
+async def root() -> dict[str, str]:
+    """Root endpoint to show the API is running."""
+    return {"message": "Welcome to IncidentMind API! The environment is running.", "endpoints": ["/health", "/reset", "/step", "/state"]}
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
