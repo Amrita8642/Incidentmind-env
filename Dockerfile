@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+# Force Python to print logs directly to the console without buffering
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 COPY requirements.txt .
