@@ -1,3 +1,12 @@
+---
+title: IncidentMind
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
+
 # IncidentMind 🚀
 
 An AI-powered SRE (Site Reliability Engineering) incident triage environment built for the **Meta PyTorch × Hugging Face OpenEnv Hackathon 2026**.
