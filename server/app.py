@@ -101,11 +101,13 @@ async def root() -> dict:
 
 
 
+from typing import Optional
+
 # ─────────────────────────────────────────────────────────────────────────────
 # POST /reset  — start a new episode
 # ─────────────────────────────────────────────────────────────────────────────
 @app.post("/reset", response_model=Observation, tags=["environment"])
-async def reset(body: ResetRequest, request: Request) -> Observation:
+async def reset(request: Request, body: Optional[ResetRequest] = None) -> Observation:
 
     """
     Start a new episode for the given task.
@@ -122,6 +124,11 @@ async def reset(body: ResetRequest, request: Request) -> Observation:
         (Pydantic validates this automatically via the Literal type in ResetRequest)
     """
     env: IncidentEnvironment = get_env(request)
+    
+    # Hackathon Submission Fix: Provide fallback if body is missing/null
+    if body is None:
+        body = ResetRequest(task_id="task1", seed=42)
+        
     observation = env.reset(task_id=body.task_id, seed=body.seed)
     return observation
 
