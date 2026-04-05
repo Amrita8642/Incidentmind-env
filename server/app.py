@@ -95,7 +95,7 @@ async def health() -> dict[str, str]:
 # GET /      — root endpoint to prevent 404s on HF Spaces
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/", tags=["ops"])
-async def root() -> dict[str, str]:
+async def root() -> dict:
     """Root endpoint to show the API is running."""
     return {"message": "Welcome to IncidentMind API! The environment is running.", "endpoints": ["/health", "/reset", "/step", "/state"]}
 
