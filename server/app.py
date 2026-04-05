@@ -26,8 +26,8 @@ from fastapi import FastAPI, HTTPException, Request
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from IncidentMind.models import Action, Observation, ResetRequest, State, StepResult
-from IncidentMind.server.environment import IncidentEnvironment
+from models import Action, Observation, ResetRequest, State, StepResult
+from server.environment import IncidentEnvironment
 
 
 # ─────────────────────────────────────────────────────────────────────────────
