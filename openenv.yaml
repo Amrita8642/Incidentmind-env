@@ -1,4 +1,4 @@
-﻿name: "IncidentMind"
+name: "IncidentMind"
 version: "1.0.0"
 description: "AI-powered SRE incident triage environment"
 action_space:
