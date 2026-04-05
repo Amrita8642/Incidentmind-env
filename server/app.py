@@ -1,4 +1,4 @@
-﻿"""
+"""
 server/app.py â€” IncidentMind FastAPI HTTP Server
 ================================================
 OWNER: Ritu
@@ -199,12 +199,12 @@ if __name__ == "__main__":
     #   CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
     uvicorn.run("server.app:app", host="0.0.0.0", port=7860, reload=True)
 
- d e f   m a i n ( ) : 
-         i m p o r t   u v i c o r n 
-         u v i c o r n . r u n ( " s e r v e r . a p p : a p p " ,   h o s t = " 0 . 0 . 0 . 0 " ,   p o r t = 7 8 6 0 ) 
- 
- i f   _ _ n a m e _ _   = =   " _ _ m a i n _ _ " : 
-         m a i n ( ) 
- 
- 
- 
+def main():
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
+
+if __name__ == "__main__":
+    main()
+
+
+
