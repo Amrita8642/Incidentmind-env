@@ -23,16 +23,15 @@ except ImportError:
 
 def load_env() -> tuple[str, str, str, str, int]:
     missing = []
-    api_base_url = os.environ.get("API_BASE_URL", "")
-    model_name   = os.environ.get("MODEL_NAME", "")
-    hf_token     = os.environ.get("HF_TOKEN", "")
-    if not api_base_url: missing.append("API_BASE_URL")
-    if not model_name:   missing.append("MODEL_NAME")
-    if not hf_token:     missing.append("HF_TOKEN")
+    api_base_url = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
+    model_name   = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
+    hf_token     = os.environ.get("HF_TOKEN", "dummy-token")
+    if not os.environ.get("API_BASE_URL"): missing.append("API_BASE_URL")
+    if not os.environ.get("MODEL_NAME"):   missing.append("MODEL_NAME")
+    if not os.environ.get("HF_TOKEN"):     missing.append("HF_TOKEN")
     if missing:
-        print("ERROR: Missing required environment variables:")
+        print("WARNING: Missing environment variables, proceeding with defaults:")
         for var in missing: print(f"  - {var}")
-        sys.exit(0)
     server_url = os.environ.get("INCIDENT_SERVER_URL", "http://localhost:7860")
     seed = int(os.environ.get("SEED", "42"))
     return api_base_url, model_name, hf_token, server_url, seed
