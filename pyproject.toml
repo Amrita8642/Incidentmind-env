@@ -7,8 +7,19 @@ name = "incidentmind"
 version = "1.0.0"
 description = "IncidentMind: AI-powered SRE incident triage environment for the Meta PyTorch Ã— HuggingFace OpenEnv Hackathon 2026"
 requires-python = ">=3.11"
-license = { text = "MIT" }
-
+license = { text = "MIT" }dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.25.0",
+    "websockets>=12.0",
+    "networkx>=3.0",
+    "numpy>=1.24.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "openenv-core>=0.1.0"
+]
 # â”€â”€ Runtime dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Amrita reads this to populate server/requirements.txt for the Dockerfile.
 # Run: pip install -e ".[dev]" locally.
