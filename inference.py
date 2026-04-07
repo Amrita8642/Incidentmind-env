@@ -37,12 +37,21 @@ Do not include any explanation or markdown. Return only the JSON object."""
 
 INCIDENT_SERVER_URL = "http://localhost:7860"
 
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+def log_step(step: int, action: str, reward: float, done: bool, error: str) -> None:
+    print(f"[STEP] step={step} action={action} reward={reward} done={done} error={error}", flush=True)
+
+def log_end(success: bool, steps: int, score: float, rewards: list) -> None:
+    print(f"[END] success={success} steps={steps} score={score} rewards={rewards}", flush=True)
+
 def run_inference():
     tasks = ["task1", "task2", "task3"]
     total_scores = []
-
+    
     for task_id in tasks:
-        print(f"[START] task={task_id}", flush=True)
+        log_start(task=task_id, env="IncidentMind", model=MODEL_NAME)
         
         try:
             response = requests.post(f"{INCIDENT_SERVER_URL}/reset", json={"task_id": task_id, "seed": 42})
@@ -55,10 +64,13 @@ def run_inference():
         step_number = 0
         done = False
         total_score = 0.0
+        success = False
+        rewards = []
         
         while not done and step_number < 50:
             step_number += 1
             obs_str = json.dumps(obs)
+            error_str = None
             
             try:
                 llm_response = client.chat.completions.create(
@@ -79,28 +91,38 @@ def run_inference():
                         action_json = json.loads(raw_text)
                 except json.JSONDecodeError:
                     action_json = {"action_type": "RESOLVE", "parameters": {}}
+                    error_str = "JSON parsing error"
                     
             except Exception as e:
-                print(f"Error calling LLM: {e}", flush=True)
+                error_str = str(e)
                 action_json = {"action_type": "RESOLVE", "parameters": {}}
             
             if not isinstance(action_json, dict) or "action_type" not in action_json or "parameters" not in action_json:
                 action_json = {"action_type": "RESOLVE", "parameters": {}}
+                error_str = error_str or "Invalid action format"
                 
+            action_type = action_json["action_type"]
+            
             try:
-                step_resp = requests.post(f"{INCIDENT_SERVER_URL}/step", json={"action_type": action_json["action_type"], "parameters": action_json["parameters"]})
+                step_resp = requests.post(
+                    f"{INCIDENT_SERVER_URL}/step", 
+                    json={"action_type": action_type, "parameters": action_json["parameters"]}
+                )
                 step_resp.raise_for_status()
                 step_result = step_resp.json()
             except Exception as e:
-                print(f"Error calling /step: {e}", flush=True)
-                break
-                
+                error_str = str(e)
+                done = True
+                step_result = {"reward": 0.0, "done": True, "observation": obs, "info": {}}
+
             reward = float(step_result.get("reward", 0.0))
-            print(f"[STEP] step={step_number} reward={reward}", flush=True)
+            rewards.append(reward)
             
             done = step_result.get("done", False)
             obs = step_result.get("observation", {})
             info = step_result.get("info", {})
+            
+            log_step(step=step_number, action=action_type, reward=reward, done=done, error=error_str)
             
             if done:
                 grade = info.get("grade_result", info)
@@ -108,8 +130,9 @@ def run_inference():
                     total_score = float(grade.get("total_score", 0.0))
                 else:
                     total_score = 0.0
-        
-        print(f"[END] task={task_id} score={total_score} steps={step_number}", flush=True)
+                success = total_score > 0.0
+                
+        log_end(success=success, steps=step_number, score=total_score, rewards=rewards)
         total_scores.append(total_score)
         
     if total_scores:
