@@ -7,7 +7,8 @@ name = "incidentmind"
 version = "1.0.0"
 description = "IncidentMind: AI-powered SRE incident triage environment for the Meta PyTorch Ã— HuggingFace OpenEnv Hackathon 2026"
 requires-python = ">=3.11"
-license = { text = "MIT" }dependencies = [
+license = { text = "MIT" }
+dependencies = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
