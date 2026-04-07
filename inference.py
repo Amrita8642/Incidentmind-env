@@ -165,6 +165,7 @@ def run_episode(
     print(f"\n{'='*60}")
     print(f"  TASK: {task_id.upper()} | SEED: {seed}")
     print(f"{'='*60}")
+    print(f"[START] task={task_id}", flush=True)
 
     obs = env_client.reset(task_id=task_id, seed=seed)
     print(f"  Episode started. Alerts visible: {len(obs.get('alerts', []))}")
@@ -184,6 +185,7 @@ def run_episode(
             try:
                 step_result = env_client.step(action_type="RESOLVE", parameters={})
                 reward = step_result.get("reward", 0.0)
+                print(f"[STEP] step={step} reward={reward:.4f}", flush=True)
                 done = step_result.get("done", True)
                 obs = step_result.get("observation", obs)
                 info = step_result.get("info", {})
@@ -246,6 +248,7 @@ def run_episode(
             break
 
         reward = step_result.get("reward", 0.0)
+        print(f"[STEP] step={step} reward={reward:.4f}", flush=True)
         done = step_result.get("done", False)
         obs = step_result.get("observation", obs)
         info = step_result.get("info", {})
@@ -258,7 +261,7 @@ def run_episode(
             print(f"\n  Episode ended. Reason: {reason}")
             break
 
-    return grade_result or {
+    grade = grade_result or {
         "total_score": 0.0,
         "root_cause_score": 0.0,
         "runbook_score": 0.0,
@@ -266,6 +269,8 @@ def run_episode(
         "efficiency_score": 0.0,
         "details": "Episode ended without grading.",
     }
+    print(f"[END] task={task_id} score={grade['total_score']:.4f} steps={step}", flush=True)
+    return grade
 
 
 def _main_core() -> None:
