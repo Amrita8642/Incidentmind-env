@@ -4,6 +4,13 @@ import json
 import requests
 from openai import OpenAI
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    load_dotenv("IncidentMind/.env")
+except ImportError:
+    pass
+
 API_BASE_URL = os.getenv("API_BASE_URL", "<your-active-endpoint>")
 MODEL_NAME = os.getenv("MODEL_NAME", "<your-active-model>")
 HF_TOKEN = os.getenv("HF_TOKEN")
