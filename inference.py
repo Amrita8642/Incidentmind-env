@@ -164,7 +164,8 @@ def run_episode(
     print(f"\n{'='*60}")
     print(f"  TASK: {task_id.upper()} | SEED: {seed}")
     print(f"{'='*60}")
-    print(f"[START] task={task_id}", flush=True)
+    print(f"[START] task={task_id} env=incidentmind model={model_name}", flush=True)
+    rewards_history = []
 
     obs = env_client.reset(task_id=task_id, seed=seed)
     print(f"  Episode started. Alerts visible: {len(obs.get('alerts', []))}")
@@ -184,8 +185,10 @@ def run_episode(
             try:
                 step_result = env_client.step(action_type="RESOLVE", parameters={})
                 reward = step_result.get("reward", 0.0)
-                print(f"[STEP] step={step} reward={reward:.4f}", flush=True)
+                rewards_history.append(reward)
                 done = step_result.get("done", True)
+                done_str = "true" if done else "false"
+                print(f"[STEP] step={step} action=RESOLVE reward={reward:.2f} done={done_str} error=null", flush=True)
                 obs = step_result.get("observation", obs)
                 info = step_result.get("info", {})
                 print(f"             reward={reward:+.3f} | done={done}")
@@ -247,8 +250,11 @@ def run_episode(
             break
 
         reward = step_result.get("reward", 0.0)
-        print(f"[STEP] step={step} reward={reward:.4f}", flush=True)
+        rewards_history.append(reward)
         done = step_result.get("done", False)
+        done_str = "true" if done else "false"
+        action_str = f"{action_type}"
+        print(f"[STEP] step={step} action={action_str} reward={reward:.2f} done={done_str} error=null", flush=True)
         obs = step_result.get("observation", obs)
         info = step_result.get("info", {})
 
@@ -268,7 +274,10 @@ def run_episode(
         "efficiency_score": 0.0,
         "details": "Episode ended without grading.",
     }
-    print(f"[END] task={task_id} score={grade['total_score']:.4f} steps={step}", flush=True)
+    success = grade.get('total_score', 0.0) > 0.0
+    success_str = "true" if success else "false"
+    rewards_str = ",".join([f"{r:.2f}" for r in rewards_history])
+    print(f"[END] success={success_str} steps={step} score={grade.get('total_score', 0.0):.3f} rewards={rewards_str}", flush=True)
     return grade
 
 
