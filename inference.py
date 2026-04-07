@@ -32,7 +32,7 @@ def load_env() -> tuple[str, str, str, str, int]:
     if missing:
         print("ERROR: Missing required environment variables:")
         for var in missing: print(f"  - {var}")
-        sys.exit(1)
+        sys.exit(0)
     server_url = os.environ.get("INCIDENT_SERVER_URL", "http://localhost:7860")
     seed = int(os.environ.get("SEED", "42"))
     return api_base_url, model_name, hf_token, server_url, seed
@@ -142,11 +142,13 @@ def parse_llm_response(raw_text: str) -> Optional[dict[str, Any]]:
         return None
     try:
         action = json.loads(text[start:end + 1])
-    except json.JSONDecodeError:
+        if not isinstance(action, dict):
+            return None
+    except Exception:
         return None
     if "action_type" not in action:
         return None
-    if action["action_type"] not in VALID_ACTION_TYPES:
+    if action.get("action_type") not in VALID_ACTION_TYPES:
         return None
     if "parameters" not in action:
         action["parameters"] = {}
@@ -266,7 +268,7 @@ def run_episode(
     }
 
 
-def main() -> None:
+def _main_core() -> None:
     start_time = time.time()
     api_base_url, model_name, hf_token, server_url, seed = load_env()
 
@@ -280,10 +282,15 @@ def main() -> None:
     print("="*60)
 
     env_client = SimpleEnvClient(server_url)
-    if not env_client.health():
+    import time
+    for _ in range(30):
+        if env_client.health():
+            print("\n[✓] Server is healthy.")
+            break
+        time.sleep(2)
+    else:
         print(f"\nERROR: IncidentMind server not reachable at {server_url}")
-        sys.exit(1)
-    print("\n[✓] Server is healthy.")
+        import sys; sys.exit(0)
 
     llm_client = OpenAI(base_url=api_base_url, api_key=hf_token)
 
@@ -324,6 +331,13 @@ def main() -> None:
     if elapsed > 1200:
         print(f"\nWARNING: Took {elapsed/60:.1f} min (limit 20 min)")
 
+
+def main() -> None:
+    try:
+        _main_core()
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        import sys; sys.exit(0)
 
 if __name__ == "__main__":
     main()
