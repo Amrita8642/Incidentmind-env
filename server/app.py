@@ -1,0 +1,210 @@
+"""
+server/app.py â€” IncidentMind FastAPI HTTP Server
+================================================
+OWNER: Ritu
+PORT: 7860 (mandatory â€” Amrita's Dockerfile exposes this port)
+DEPENDS ON: models.py, server/environment.py
+
+Endpoints:
+  POST /reset   â†’ Accept ResetRequest, return Observation
+  POST /step    â†’ Accept Action, return StepResult
+  GET  /state   â†’ Return State
+  GET  /health  â†’ Return {"status": "ok"}  (used by CI + HF Spaces)
+
+Key design decisions:
+  - Single IncidentEnvironment instance shared across all requests (lifespan)
+  - CORS enabled for all origins (required for HF Space web interface)
+  - All handlers are async def
+  - HTTP 422 with clear message for invalid action parameters
+"""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Request
+
+
+from fastapi.middleware.cors import CORSMiddleware
+
+from models import Action, Observation, ResetRequest, State, StepResult
+from server.environment import IncidentEnvironment
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Lifespan: create ONE shared environment at startup, dispose at shutdown
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI lifespan manager.
+    The environment is created ONCE when the server starts.
+    All requests share the same instance â€” this is intentional.
+    """
+    app.state.env = IncidentEnvironment()
+    print("[IncidentMind] Environment initialised and ready.")
+    yield
+    # Cleanup (nothing needed here, but the pattern requires yield)
+    print("[IncidentMind] Server shutting down.")
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# App definition
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app = FastAPI(
+    title="IncidentMind",
+    description=(
+        "AI-powered SRE incident triage environment for the "
+        "Meta PyTorch Ã— Hugging Face OpenEnv Hackathon 2026. "
+        "Agents learn to identify root causes, trigger runbooks, "
+        "and resolve incidents across three difficulty tiers."
+    ),
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# â”€â”€ CORS: allow requests from any origin (required for HF Space frontend) â”€â”€â”€â”€
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Dependency helper â€” avoids repeating app.state.env everywhere
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+def get_env(request) -> IncidentEnvironment:
+    return request.app.state.env
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# GET /health  â€” used by CI pipeline and HF Spaces health check
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+@app.get("/health", tags=["ops"])
+async def health() -> dict[str, str]:
+    """
+    Static health check. Returns 200 + {"status": "ok"} when the server is up.
+    Amrita's CI pipeline curls this after docker run to confirm startup.
+    """
+    return {"status": "ok"}
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# GET /      â€” root endpoint to prevent 404s on HF Spaces
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+@app.get("/", tags=["ops"])
+async def root() -> dict:
+    """Root endpoint to show the API is running."""
+    return {"message": "Welcome to IncidentMind API! The environment is running.", "endpoints": ["/health", "/reset", "/step", "/state"]}
+
+
+
+from typing import Optional
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# POST /reset  â€” start a new episode
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+@app.post("/reset", response_model=Observation, tags=["environment"])
+async def reset(request: Request, body: Optional[ResetRequest] = None) -> Observation:
+
+    """
+    Start a new episode for the given task.
+
+    Request body:
+        {"task_id": "task1", "seed": 42}
+        {"task_id": "task2"}          â† seed is optional
+
+    Returns:
+        Full Observation Pydantic model as JSON.
+
+    Raises:
+        422 if task_id is not one of: task1, task2, task3
+        (Pydantic validates this automatically via the Literal type in ResetRequest)
+    """
+    env: IncidentEnvironment = get_env(request)
+    
+    # Hackathon Submission Fix: Provide fallback if body is missing/null
+    if body is None:
+        body = ResetRequest(task_id="task1", seed=42)
+        
+    observation = env.reset(task_id=body.task_id, seed=body.seed)
+    return observation
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# POST /step  â€” apply one agent action
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+@app.post("/step", response_model=StepResult, tags=["environment"])
+async def step(action: Action, request: Request) -> StepResult:
+    """
+    Apply one action to the current episode.
+
+    Request body examples:
+        {"action_type": "INVESTIGATE", "parameters": {"alert_id": "alert-001"}}
+        {"action_type": "TRIGGER_RUNBOOK", "parameters": {"runbook_id": "RUNBOOK_DB_POOL_RESET"}}
+        {"action_type": "RESOLVE", "parameters": {}}
+
+    Returns:
+        StepResult with new Observation, reward, done flag, and info dict.
+        When done=True, info["grade_result"] contains the final GradeResult dict.
+
+    Raises:
+        422 if action_type is not one of the 7 valid strings (Pydantic validates this).
+        422 if required parameters are missing (handled in environment._handle_* methods,
+            reflected in info["error"] with reward=-0.05).
+    """
+    env: IncidentEnvironment = get_env(request)
+
+    # Pydantic already validated action_type via the Literal type in Action model.
+    # If we reach here, action_type is guaranteed to be one of the 7 valid strings.
+    result = env.step(action)
+
+    # If environment returned an error in info (e.g., episode already done), still
+    # return 200 with the StepResult â€” the client reads info["error"].
+    # Only raise HTTP errors for true server-side failures.
+    return result
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# GET /state  â€” lightweight read of episode metadata
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+@app.get("/state", response_model=State, tags=["environment"])
+async def state(request: Request) -> State:
+    """
+    Returns lightweight episode state (episode_id, step_count, elapsed_seconds, task_id).
+    Does NOT return the full Observation. Does NOT change environment state.
+
+    Raises:
+        503 if no episode has been started yet (episode_id is empty).
+    """
+    env: IncidentEnvironment = get_env(request)
+
+    if not env._episode_id:
+        raise HTTPException(
+            status_code=503,
+            detail="No episode is active. Call POST /reset first.",
+        )
+
+    return env.state()
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Entry point for local development (not used by Amrita's Dockerfile)
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+if __name__ == "__main__":
+    import uvicorn
+    # For local dev only. Amrita's Dockerfile uses:
+    #   CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860, reload=True)
+
+def main():
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
+
+if __name__ == "__main__":
+    main()
+
+
+

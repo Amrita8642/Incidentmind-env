@@ -1,0 +1,26 @@
+name: "IncidentMind"
+version: "1.0.0"
+description: "AI-powered SRE incident triage environment"
+action_space:
+  types:
+    - "INVESTIGATE"
+    - "MARK_ROOT_CAUSE"
+    - "TRIGGER_RUNBOOK"
+    - "GROUP_ALERTS"
+    - "SUPPRESS_ALERT"
+    - "QUERY_RUNBOOK"
+    - "RESOLVE"
+observation_space:
+  fields:
+    - "alerts"
+    - "investigated_alerts"
+    - "alert_groups"
+    - "root_cause_candidates"
+    - "service_graph"
+    - "triggered_runbooks"
+    - "action_history"
+    - "step_count"
+    - "elapsed_seconds"
+    - "task_id"
+    - "max_steps"
+    - "is_done"
