@@ -21,11 +21,11 @@ except ImportError:
     pass
 
 
-def load_env() -> tuple[str, str, str, str, int]:
+def load_env() -> tuple[str, str, Optional[str], str, int]:
     missing = []
     api_base_url = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
     model_name   = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
-    hf_token     = os.environ.get("HF_TOKEN", "dummy-token")
+    hf_token     = os.environ.get("HF_TOKEN")
     if not os.environ.get("API_BASE_URL"): missing.append("API_BASE_URL")
     if not os.environ.get("MODEL_NAME"):   missing.append("MODEL_NAME")
     if not os.environ.get("HF_TOKEN"):     missing.append("HF_TOKEN")
@@ -164,10 +164,11 @@ def run_episode(
     print(f"\n{'='*60}")
     print(f"  TASK: {task_id.upper()} | SEED: {seed}")
     print(f"{'='*60}")
-    print(f"[START] task={task_id} env=incidentmind model={model_name}", flush=True)
-    rewards_history = []
+    print(f"[START] task={task_id}", flush=True)
 
-    obs = env_client.reset(task_id=task_id, seed=seed)
+    try:
+        obs = env_client.reset(task_id=task_id, seed=seed)
+    except Exception as e:
     print(f"  Episode started. Alerts visible: {len(obs.get('alerts', []))}")
 
     conversation: list[dict[str, str]] = []
@@ -185,10 +186,8 @@ def run_episode(
             try:
                 step_result = env_client.step(action_type="RESOLVE", parameters={})
                 reward = step_result.get("reward", 0.0)
-                rewards_history.append(reward)
                 done = step_result.get("done", True)
-                done_str = "true" if done else "false"
-                print(f"[STEP] step={step} action=RESOLVE reward={reward:.2f} done={done_str} error=null", flush=True)
+                print(f"[STEP] step={step} reward={reward}", flush=True)
                 obs = step_result.get("observation", obs)
                 info = step_result.get("info", {})
                 print(f"             reward={reward:+.3f} | done={done}")
@@ -250,15 +249,12 @@ def run_episode(
             break
 
         reward = step_result.get("reward", 0.0)
-        rewards_history.append(reward)
         done = step_result.get("done", False)
-        done_str = "true" if done else "false"
-        action_str = f"{action_type}"
-        print(f"[STEP] step={step} action={action_str} reward={reward:.2f} done={done_str} error=null", flush=True)
+        print(f"             reward={reward:+.3f} | done={done}")
+        print(f"[STEP] step={step} reward={reward}", flush=True)
+
         obs = step_result.get("observation", obs)
         info = step_result.get("info", {})
-
-        print(f"             reward={reward:+.3f} | done={done}")
 
         if done:
             grade_result = info.get("grade_result")
@@ -274,10 +270,8 @@ def run_episode(
         "efficiency_score": 0.0,
         "details": "Episode ended without grading.",
     }
-    success = grade.get('total_score', 0.0) > 0.0
-    success_str = "true" if success else "false"
-    rewards_str = ",".join([f"{r:.2f}" for r in rewards_history])
-    print(f"[END] success={success_str} steps={step} score={grade.get('total_score', 0.0):.3f} rewards={rewards_str}", flush=True)
+    score = grade.get("total_score", 0.0)
+    print(f"[END] task={task_id} score={score} steps={step}", flush=True)
     return grade
 
 
